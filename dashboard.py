@@ -6,65 +6,43 @@ st.set_page_config(page_title="Cyber Security Project", layout="wide")
 
 @st.cache_data
 def load_data():
-    df = pd.read_csv("cybersecurity_intrusion_data.csv")
-    df['encryption_used'] = df['encryption_used'].fillna('Unencrypted')
-    df['Attack Status'] = df['attack_detected'].replace({0: 'Normal Traffic', 1: 'Attack'})
+    df = pd.read_csv("cybersecurity_large_synthesized_data.csv")
+    df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+    df['Hour'] = df['timestamp'].dt.hour.fillna(0).astype(int); df['Day'] = df['timestamp'].dt.day_name(); df['Is_Attack'] = df['outcome'].apply(lambda x: 1 if str(x).lower() == 'success' else 0); df['data_compromised_GB'] = pd.to_numeric(df['data_compromised_GB'], errors='coerce').fillna(0); df['Count'] = 1
     return df
 
-df_original = load_data()
+df = load_data()
 
 st.sidebar.title("Dashboard")
-selected_protocol = st.sidebar.selectbox("Filter Data by Network Protocol", ["Show All Data"] + list(df_original['protocol_type'].unique()))
+st.sidebar.markdown("---")
+ind = st.sidebar.selectbox("Filter Industry", ["Show All"] + list(df['industry'].dropna().unique()))
+plot_df = df if ind == "Show All" else df[df['industry'] == ind]
 
-df = df_original if selected_protocol == "Show All Data" else df_original[df_original['protocol_type'] == selected_protocol]
-
-st.title("Protecting Data")
-st.markdown("**By: Mohammed Alanizy**")
-st.markdown("---")
-
-st.markdown("### Introduction & Objectives")
-st.markdown("We live in a digital world where data is everything. The goal of this research is to find exact patterns of computer attacks on our network. By looking at this data, I will prove that we must invest money into better cloud security to keep a company safe.")
-
-st.markdown("### Research & Methodology")
-st.markdown("I used a synthetically generated Cybersecurity Intrusion Detection dataset to safely look at network attacks without sharing private user information. The data tracks browser types, failed logins, encryption, and IP reputation. **You can use the menu on the left to filter all the charts below by specific network protocols.**")
-
+st.title("Why We Need AI To Protect Our Data")
+st.markdown("**My Main Idea:** Humans are too slow to stop hackers now. We need to spend money to use smart AI to defend our cloud. The data shows that when we are slow, we lose massive gigabytes of data, and hackers attack us at specific times to break our old tools.")
 col1, col2, col3 = st.columns(3)
-col1.metric("Total Sessions Displayed", f"{len(df):,}"); col2.metric("Attacks Detected", f"{df['attack_detected'].sum():,}", delta_color="inverse"); col3.metric("Current Attack Rate", f"{(df['attack_detected'].sum() / len(df)) * 100:.1f}%" if len(df) > 0 else "0%")
-
+col1.metric("Total Data Rows", f"{len(plot_df):,}"); col2.metric("Total Data Lost (GB)", f"{plot_df['data_compromised_GB'].sum():,.1f}", delta_color="inverse"); col3.metric("System Failure Rate", f"{(plot_df['Is_Attack'].sum() / len(plot_df)) * 100:.1f}%" if len(plot_df) > 0 else "0%")
 st.markdown("---")
-
 chart_col1, chart_col2 = st.columns(2)
-
 with chart_col1:
-    st.markdown("**Question 1: How do attackers access the system?**")
-    browser_rates = df.groupby('browser_type')['attack_detected'].mean().mul(100).reset_index(name='Attack Rate (%)').sort_values('Attack Rate (%)', ascending=False)
-    st.plotly_chart(px.bar(browser_rates, x='browser_type', y='Attack Rate (%)', color='browser_type', color_discrete_map={'Unknown': '#d73027'}, color_discrete_sequence=['#74add1'], labels={'browser_type': 'Browser Type'}).update_layout(showlegend=False), use_container_width=True)
+    st.markdown("**1. How much data do we lose when we are slow?**")
+    st.plotly_chart(px.scatter(plot_df, x="response_time_min", y="data_compromised_GB", color="outcome", size="attack_severity", opacity=0.5, color_discrete_map={"Success": "#d73027", "Failed": "#74add1", "success": "#d73027", "failed": "#74add1"}, hover_data=["attack_type", "target_system"]).update_layout(margin=dict(l=0, r=0, b=0, t=0)), use_container_width=True)
+    st.write("I asked how much data we lose based on our speed. The data shows that if our team is fast (under 90 minutes), we lose about 50 Gigabytes. If we are slow, we still lose about 50 Gigabytes. This proves a big point: human speed does not matter anymore. Once the hacker is in, the data is gone. Humans cannot be fast enough, so we must use AI.")
 
 with chart_col2:
-    st.markdown("**Question 2: What are the early warning signs?**")
-    df['Failed Logins Group'] = df['failed_logins'].clip(upper=5)
-    login_rates = df.groupby('Failed Logins Group')['attack_detected'].mean().mul(100).reset_index(name='Attack Rate (%)')
-    st.plotly_chart(px.bar(login_rates, x='Failed Logins Group', y='Attack Rate (%)', color='Failed Logins Group', color_continuous_scale=['#74add1', '#74add1', '#d73027', '#d73027']).add_hline(y=100, line_dash="dash", line_color="red", annotation_text="100% Danger Zone"), use_container_width=True)
-
+    st.markdown("**2. What day and hour do hackers win the most?**")
+    st.plotly_chart(px.density_heatmap(plot_df, x="Hour", y="Day", z="Is_Attack", histfunc="sum", color_continuous_scale="Viridis"), use_container_width=True)
+    st.write("I asked what day and hour hackers win the most. Hackers wait until we are sleeping. The brightest yellow color on the heatmap is Wednesday at 23:00 (11:00 PM). Hackers succeeded exactly 345 times at this exact hour! Humans cannot be perfect at night, which proves we need an automated AI system to watch the cloud.")
 st.markdown("---")
 chart_col3, chart_col4 = st.columns(2)
-
 with chart_col3:
-    st.markdown("**Question 3: Does encryption keep us safe?**")
-    enc_rates = df.groupby('encryption_used')['attack_detected'].mean().mul(100).reset_index(name='Attack Rate (%)').sort_values('Attack Rate (%)', ascending=False)
-    st.plotly_chart(px.bar(enc_rates, x='encryption_used', y='Attack Rate (%)', color='encryption_used', color_discrete_map={'DES': '#d73027'}, color_discrete_sequence=['#74add1'], labels={'encryption_used': 'Encryption Algorithm'}).update_layout(showlegend=False), use_container_width=True)
+    st.markdown("**3. Which security tools fail the most against attacks?**")
+    st.plotly_chart(px.treemap(plot_df.dropna(subset=['target_system', 'attack_type', 'security_tools_used']), path=[px.Constant("Network"), 'target_system', 'attack_type', 'security_tools_used'], values='Count', color='Is_Attack', color_continuous_scale='Reds'), use_container_width=True)
+    st.write("I asked which security tools fail the most. Some of our old tools are completely broken. The data shows that our 'IDS' tool is the weakest point. It failed 242 times when hackers used Brute Force attacks to break into our Web Server. This shows exactly what we need to spend money to fix first.")
 
 with chart_col4:
-    st.markdown("**Question 4: Can we predict an attack?**")
-    st.plotly_chart(px.violin(df, y="ip_reputation_score", x="Attack Status", color="Attack Status", box=True, points="all", color_discrete_map={'Normal Traffic': '#74add1', 'Attack': '#d73027'}, labels={'ip_reputation_score': 'IP Reputation Score'}), use_container_width=True)
-
+    st.markdown("**4. Which countries do the most damage to us?**")
+    st.plotly_chart(px.scatter_geo(plot_df[plot_df['Is_Attack']==1].groupby('location').agg({'data_compromised_GB':'sum', 'attack_severity':'mean'}).reset_index(), locations="location", locationmode="country names", size="data_compromised_GB", color="attack_severity", color_continuous_scale="Reds", template="plotly_white"), use_container_width=True)
+    st.write("I asked which countries do the most damage to us. We get attacks from everywhere, but three countries steal the most data. The United Kingdom is number one, stealing over 256,000 Gigabytes! China and Canada are right behind them, both stealing over 250,000 Gigabytes. The map proves we must put strong security blocks on traffic coming from these specific countries.")
 st.markdown("---")
-st.markdown("### Conclusion & Recommendations")
-st.success("**To fix these security holes immediately, we must invest money to do the following:**\n\n1. Block all traffic coming from \"Unknown\" web browsers.\n2. Lock user accounts instantly after 3 failed login attempts.\n3. Stop using older DES encryption and upgrade the whole system to AES.")
-
-
-# my answers for the questions
-#1. As we can see in this first chart the attackers mostly hide behind 'Unknown' browsers. That is our highest risk
-#2. as we can see in the chart, if a login fails 3 times, it enters the red danger zone, meaning it is almost certainly an attack
-#3. as we can see in the chart, we can see old encryption methods like DES fail to keep us safe and have the highest attack rates
-#4. this violin plot shows we can predict attacks. A higher IP reputation score means the traffic is really bad!!
+st.success("**Final Plan to Fix This:**\nBecause of the data charts above, we must do this now:\n1. **Use AI:** The bubble chart shows human speed cannot save the 50 GB data loss. We need AI to stop it instantly.\n2. **Fix Broken Tools:** The treemap shows exactly that our IDS tool is failing against Brute Force attacks. We need to upgrade it.\n3. **Block Bad Countries:** We must stop traffic from the UK, China, and Canada, especially during our bright yellow hours on Wednesday night. For example, if the website is a government site, we can block all traffic from these countries. If it is a business site, we can require extra verification for users from these countries.")
